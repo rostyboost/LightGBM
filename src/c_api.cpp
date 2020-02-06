@@ -270,6 +270,19 @@ class Booster {
     *out_len = single_row_predictor_[predict_type]->num_pred_in_one_row;
   }
 
+  void ForkPredictSingleRowFastScalar(int num_iteration, int predict_type,
+               std::vector<std::pair<int, double>>* one_row,
+               double* out_result) {
+    //std::lock_guard<std::mutex> lock(mutex_);
+    if (single_row_predictor_[predict_type].get() == nullptr) {
+      single_row_predictor_[predict_type].reset(new SingleRowPredictor(predict_type, boosting_.get(),
+                                                                       config_, num_iteration));
+    }
+
+    auto pred_wrt_ptr = out_result;
+    single_row_predictor_[predict_type]->predict_function(*one_row, pred_wrt_ptr);
+  }
+
 
   void Predict(int num_iteration, int predict_type, int nrow, int ncol,
                std::function<std::vector<std::pair<int, double>>(int row_idx)> get_row_fun,
@@ -1380,6 +1393,46 @@ int LGBM_BoosterPredictForCSRSingleRow(BoosterHandle handle,
   Booster* ref_booster = reinterpret_cast<Booster*>(handle);
   auto get_row_fun = RowFunctionFromCSR(indptr, indptr_type, indices, data, data_type, nindptr, nelem);
   ref_booster->PredictSingleRow(num_iteration, predict_type, static_cast<int32_t>(num_col), get_row_fun, config, out_result, out_len);
+  API_END();
+}
+
+int LGBM_ForkTransformSingleCSRRow(const void* indptr,
+                                   const int32_t* indices,
+                                   const void* data,
+                                   ForkRowHandle* output) {
+    API_BEGIN();
+    const float* data_ptr = reinterpret_cast<const float*>(data);
+    const int32_t* ptr_indptr = reinterpret_cast<const int32_t*>(indptr);
+    auto transformed = std::unique_ptr<std::vector<std::pair<int, double>>>(new std::vector<std::pair<int, double>>());
+    int64_t start = ptr_indptr[0];
+    int64_t end = ptr_indptr[1];
+    if (end - start > 0)  {
+        transformed->reserve(end - start);
+    }
+    for (int64_t i = start; i < end; ++i) {
+        transformed->emplace_back(indices[i], data_ptr[i]);
+    }
+    *output = transformed.release();
+    API_END();
+}
+
+int LGBM_ForkBoosterPredictForCSRSingleRowFastSingleThreadScalar(
+                                       BoosterHandle handle,
+                                       ForkRowHandle one_row_,
+                                       int predict_type,
+                                       int num_iteration,
+                                       double* out_result) {
+  API_BEGIN();
+  Booster* ref_booster = reinterpret_cast<Booster*>(handle);
+  std::vector<std::pair<int, double>>* one_row = reinterpret_cast<std::vector<std::pair<int, double>>*>(one_row_);
+  ref_booster->ForkPredictSingleRowFastScalar(num_iteration, predict_type, one_row, out_result);
+  API_END();
+}
+
+#pragma warning(disable : 4702)
+int LGBM_ForkRowFree(ForkRowHandle handle) {
+  API_BEGIN();
+  delete reinterpret_cast<std::vector<std::pair<int, double>>*>(handle);
   API_END();
 }
 

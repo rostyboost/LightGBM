@@ -21,6 +21,7 @@
 
 typedef void* DatasetHandle;  /*!< \brief Handle of dataset. */
 typedef void* BoosterHandle;  /*!< \brief Handle of booster. */
+typedef void* ForkRowHandle;
 
 #define C_API_DTYPE_FLOAT32 (0)  /*!< \brief float32 (single precision float). */
 #define C_API_DTYPE_FLOAT64 (1)  /*!< \brief float64 (double precision float). */
@@ -987,6 +988,19 @@ LIGHTGBM_C_EXPORT int LGBM_BoosterFeatureImportance(BoosterHandle handle,
                                                     int num_iteration,
                                                     int importance_type,
                                                     double* out_results);
+
+LIGHTGBM_C_EXPORT int LGBM_ForkTransformSingleCSRRow(
+                                   const void* indptr,
+                                   const int32_t* indices,
+                                   const void* data,
+                                   ForkRowHandle* output);
+LIGHTGBM_C_EXPORT int LGBM_ForkBoosterPredictForCSRSingleRowFastSingleThreadScalar(
+                                       BoosterHandle handle,
+                                       ForkRowHandle one_row_,
+                                       int predict_type,
+                                       int num_iteration,
+                                       double* out_result);
+LIGHTGBM_C_EXPORT int LGBM_ForkRowFree(ForkRowHandle handle);
 
 /*!
  * \brief Initialize the network.
